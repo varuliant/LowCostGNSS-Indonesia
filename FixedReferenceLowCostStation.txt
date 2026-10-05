@@ -1,0 +1,2 @@
+Station, ID, Lat, Lon, Alt
+Bandung, bdg,-6.88139839, 107.65023459, 849.9979
