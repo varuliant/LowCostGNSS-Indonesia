@@ -24,13 +24,13 @@ st.set_page_config(
 # 1. FUNGSIONALITAS HELPER & STAGE 1: RTKLIB
 # =============================================================================
 def find_rnx2rtkp_executable():
-    """Mencari rnx2rtkp dari sistem Linux (Streamlit Cloud) atau folder lokal (Windows)."""
-    # 1. Cek apakah rnx2rtkp terinstall di sistem Linux (Streamlit Cloud)
+    """Mencari rnx2rtkp dari sistem Linux (Streamlit Cloud) atau file lokal (Windows)."""
+    # 1. Cek apakah rnx2rtkp sudah terinstall di sistem Linux (Streamlit Cloud via packages.txt)
     system_path = shutil.which("rnx2rtkp")
     if system_path:
         return system_path
 
-    # 2. Cek file lokal jika dijalankan di PC Windows lokal
+    # 2. Cek file lokal rnx2rtkp.exe jika dijalankan di PC Windows lokal kamu
     script_dir = os.path.dirname(os.path.abspath(__file__))
     possible_paths = [
         os.path.join(script_dir, "rnx2rtkp.exe"),
