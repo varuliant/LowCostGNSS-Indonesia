@@ -192,16 +192,16 @@ def generate_plots(df_vector, station_name, doy, start_hour):
 
     # Set Theme & Figure Dimensions
     plt.style.use('seaborn-v0_8-whitegrid' if 'seaborn-v0_8-whitegrid' in plt.style.available else 'default')
-    fig = plt.figure(figsize=(16, 9), dpi=150)
+    fig = plt.figure(figsize=(16, 8.5), dpi=150)
     
     # Header Utama Figure
     fig.suptitle(
         f"GNSS GEODETIC DISPLACEMENT & ERROR ANALYSIS\nSTATION: {station_name.upper()} | DATE: {obs_date_str} (Start: {start_hr:02d}:00 UTC)",
-        fontsize=14, fontweight='bold', y=0.97, color='#1A202C'
+        fontsize=13.5, fontweight='bold', y=0.97, color='#1A202C'
     )
 
-    # GridSpec: 3 Baris x 2 Kolom (Kiri: Time Series, Kanan: Radar & Panel Statistik)
-    gs = GridSpec(3, 2, figure=fig, width_ratios=[1.35, 1.0], hspace=0.28, wspace=0.25)
+    # GridSpec: 3 Baris x 2 Kolom (Kiri: Time Series, Kanan: Radar Plot Besar)
+    gs = GridSpec(3, 2, figure=fig, width_ratios=[1.25, 1.0], hspace=0.25, wspace=0.22)
 
     # -------------------------------------------------------------------------
     # 1. TIME SERIES SUBPLOTS (SISI KIRI)
@@ -242,9 +242,9 @@ def generate_plots(df_vector, station_name, doy, start_hour):
         ax.legend(loc='upper right', frameon=True, facecolor='white', framealpha=0.9, fontsize=8.5)
 
     # -------------------------------------------------------------------------
-    # 2. RADAR VECTOR DISTRIBUTION (SISI KANAN - ATAS)
+    # 2. RADAR VECTOR DISTRIBUTION (SISI KANAN - UKURAN PENUH/BESAR)
     # -------------------------------------------------------------------------
-    ax_radar = fig.add_subplot(gs[0:2, 1], projection='polar')
+    ax_radar = fig.add_subplot(gs[:, 1], projection='polar')
     max_r = 10.0
     
     ax_radar.set_theta_zero_location('N')
@@ -263,64 +263,27 @@ def generate_plots(df_vector, station_name, doy, start_hour):
 
     ax_radar.set_rlim(0, max_r)
     ax_radar.set_rticks(radii)
-    ax_radar.set_yticklabels([f"{r:.1f}m" for r in radii], fontsize=7.5, color='#4A5568')
+    ax_radar.set_yticklabels([f"{r:.1f}m" for r in radii], fontsize=8, color='#4A5568')
     ax_radar.grid(True, linestyle='--', color='#A0AEC0', alpha=0.5, zorder=2)
 
     angles = np.radians([0, 45, 90, 135, 180, 225, 270, 315])
     labels = ['N (+dN)', 'NE', 'E (+dE)', 'SE', 'S (-dN)', 'SW', 'W (-dE)', 'NW']
     ax_radar.set_xticks(angles)
-    ax_radar.set_xticklabels(labels, fontsize=8.5, fontweight='bold', color='#2D3748')
+    ax_radar.set_xticklabels(labels, fontsize=9, fontweight='bold', color='#2D3748')
 
     theta_rad = np.arctan2(u_east, v_north)
     scatter = ax_radar.scatter(
         theta_rad, mag, c=mag, cmap='plasma',
-        s=22, alpha=0.85, zorder=4, edgecolors='black', linewidths=0.2, vmin=0, vmax=max_r
+        s=26, alpha=0.85, zorder=4, edgecolors='black', linewidths=0.2, vmin=0, vmax=max_r
     )
 
-    cbar = fig.colorbar(scatter, ax=ax_radar, orientation='vertical', shrink=0.75, pad=0.1)
-    cbar.set_label('2D Error Mag (m)', fontweight='bold', fontsize=8.5)
-    cbar.ax.tick_params(labelsize=8)
+    cbar = fig.colorbar(scatter, ax=ax_radar, orientation='vertical', shrink=0.8, pad=0.08)
+    cbar.set_label('2D Error Magnitude (m)', fontweight='bold', fontsize=9)
+    cbar.ax.tick_params(labelsize=8.5)
 
-    ax_radar.set_title('2D Vector Displacement Distribution', fontsize=10.5, fontweight='bold', pad=12, color='#1A202C')
+    ax_radar.set_title('2D Vector Displacement Distribution', fontsize=11, fontweight='bold', pad=15, color='#1A202C')
 
-    # -------------------------------------------------------------------------
-    # 3. STATISTICAL SUMMARY PANEL (SISI KANAN - BAWAH)
-    # -------------------------------------------------------------------------
-    ax_stats = fig.add_subplot(gs[2, 1])
-    ax_stats.axis('off')
-
-    # Kalkulasi Parameter Statistik Geodesi
-    stats_data = [
-        ["Component", "Min (m)", "Max (m)", "Mean (m)", "Std Dev / RMS (m)"],
-        ["North (dN)", f"{np.min(v_north):.3f}", f"{np.max(v_north):.3f}", f"{np.mean(v_north):.3f}", f"{np.std(v_north):.3f}"],
-        ["East (dE)", f"{np.min(u_east):.3f}", f"{np.max(u_east):.3f}", f"{np.mean(u_east):.3f}", f"{np.std(u_east):.3f}"],
-        ["Up / Alt (dU)", f"{np.min(w_up):.3f}", f"{np.max(w_up):.3f}", f"{np.mean(w_up):.3f}", f"{np.std(w_up):.3f}"],
-        ["2D Mag", f"{np.min(mag):.3f}", f"{np.max(mag):.3f}", f"{np.mean(mag):.3f}", f"{np.std(mag):.3f}"]
-    ]
-
-    table = ax_stats.table(
-        cellText=stats_data,
-        cellLoc='center',
-        loc='center',
-        bbox=[0.02, 0.05, 0.96, 0.85]
-    )
-    
-    table.auto_set_font_size(False)
-    table.set_fontsize(8.5)
-
-    # Styling Tabel
-    for (row, col), cell in table.get_celld().items():
-        if row == 0:
-            cell.set_facecolor('#2B6CB0')
-            cell.set_text_props(color='white', fontweight='bold')
-        else:
-            if row % 2 == 0:
-                cell.set_facecolor('#F7FAFC')
-            else:
-                cell.set_facecolor('#EDF2F7')
-            cell.set_edgecolor('#CBD5E0')
-
-    plt.subplots_adjust(top=0.90, bottom=0.08, left=0.07, right=0.96)
+    plt.subplots_adjust(top=0.89, bottom=0.08, left=0.07, right=0.96)
     return fig
 
 # =============================================================================
@@ -423,7 +386,7 @@ if st.sidebar.button("🚀 Process GNSS Data", type="primary"):
 
                             st.markdown("---")
 
-                            # 4. PLOT VISUALISASI BERTINGKAT
+                            # 4. PLOT VISUALISASI
                             st.subheader("📈 Displacement Time-Series & Error Distribution Visualizations")
                             fig = generate_plots(df_simpangan, station_name, doy, start_hour)
                             st.pyplot(fig)
