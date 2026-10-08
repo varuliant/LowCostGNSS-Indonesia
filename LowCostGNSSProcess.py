@@ -95,7 +95,7 @@ def parse_pos_to_csv(pos_path, output_csv_path):
     return False, "File .pos tidak berisi koordinat posisi valid."
 
 # =============================================================================
-# 2. FUNGSIONALITAS STAGE 2B: KALKULASI GEODESI
+# 2. FUNGSIONALITAS STAGE 2B: KALKULASI GEODESI & STATISTIK
 # =============================================================================
 def parse_rinex_filename_info(filename):
     """Mengekstrak ID Stasiun (3 karakter), DOY, dan Kode Jam UTC dari nama file."""
@@ -153,6 +153,38 @@ def calculate_geodetic_displacements(lat, lon, alt, ref_lat, ref_lon, ref_alt):
     
     return dLat_deg, dLon_deg, dAlt_m, dN_meter, dE_meter, dU_meter, mag_2D, mag_3D, azimuth_deg
 
+def calculate_statistics(df_vector):
+    """Menghitung statistik deskriptif dan ketelitian (RMS) untuk dN, dE, dU, 2D, 3D."""
+    metrics = {
+        'dN (North)': df_vector['dN_meter'],
+        'dE (East)': df_vector['dE_meter'],
+        'dU (Up)': df_vector['dU_meter'],
+        '2D Error': df_vector['magnitude_2D_m'],
+        '3D Error': df_vector['magnitude_3D_m']
+    }
+    
+    stats_list = []
+    for name, series in metrics.items():
+        mean_val = series.mean()
+        std_val = series.std()
+        rms_val = np.sqrt(np.mean(series**2))
+        max_val = series.max()
+        min_val = series.min()
+        q75, q25 = np.percentile(series.dropna(), [75 ,25])
+        iqr_val = q75 - q25
+        
+        stats_list.append({
+            'Komponen / Parameter': name,
+            'Rata-rata / Mean (m)': mean_val,
+            'Simpangan Baku / Std Dev (m)': std_val,
+            'Akurasi Presisi / RMS (m)': rms_val,
+            'Nilai Maksimum (m)': max_val,
+            'Nilai Minimum (m)': min_val,
+            'Rentang Interkuartil / IQR (m)': iqr_val
+        })
+        
+    return pd.DataFrame(stats_list)
+
 def prepare_datetime_with_utc_code(df, doy, start_hour, year=2026):
     """Menyusun datetime UTC presisi berdasarkan Kode Jam dan DOY."""
     if doy is not None:
@@ -190,27 +222,21 @@ def generate_plots(df_vector, station_name, doy, start_hour):
     df_plot, obs_date_str, start_hr = prepare_datetime_with_utc_code(df_vector, doy, start_hour)
     times = df_plot['datetime']
 
-    # Set Theme & Figure Dimensions
     plt.style.use('seaborn-v0_8-whitegrid' if 'seaborn-v0_8-whitegrid' in plt.style.available else 'default')
     fig = plt.figure(figsize=(16, 8.5), dpi=150)
     
-    # Header Utama Figure
     fig.suptitle(
         f"GNSS GEODETIC DISPLACEMENT & ERROR ANALYSIS\nSTATION: {station_name.upper()} | DATE: {obs_date_str} (Start: {start_hr:02d}:00 UTC)",
         fontsize=13.5, fontweight='bold', y=0.97, color='#1A202C'
     )
 
-    # GridSpec: 3 Baris x 2 Kolom (Kiri: Time Series, Kanan: Radar Plot Besar)
     gs = GridSpec(3, 2, figure=fig, width_ratios=[1.25, 1.0], hspace=0.25, wspace=0.22)
 
-    # -------------------------------------------------------------------------
-    # 1. TIME SERIES SUBPLOTS (SISI KIRI)
-    # -------------------------------------------------------------------------
+    # Time Series Subplots
     ax_n = fig.add_subplot(gs[0, 0])
     ax_e = fig.add_subplot(gs[1, 0], sharex=ax_n)
     ax_u = fig.add_subplot(gs[2, 0], sharex=ax_n)
 
-    # North-South Plot
     ax_n.plot(times, v_north, color='#E53E3E', linewidth=1.2, label='dN (North)')
     ax_n.axhline(0, color='#4A5568', linestyle='--', linewidth=0.8, alpha=0.7)
     ax_n.set_ylabel('dNorth / NS (m)', fontsize=9.5, fontweight='bold', color='#2D3748')
@@ -218,7 +244,6 @@ def generate_plots(df_vector, station_name, doy, start_hour):
     ax_n.grid(True, linestyle=':', alpha=0.5)
     plt.setp(ax_n.get_xticklabels(), visible=False)
 
-    # East-West Plot
     ax_e.plot(times, u_east, color='#3182CE', linewidth=1.2, label='dE (East)')
     ax_e.axhline(0, color='#4A5568', linestyle='--', linewidth=0.8, alpha=0.7)
     ax_e.set_ylabel('dEast / EW (m)', fontsize=9.5, fontweight='bold', color='#2D3748')
@@ -226,7 +251,6 @@ def generate_plots(df_vector, station_name, doy, start_hour):
     ax_e.grid(True, linestyle=':', alpha=0.5)
     plt.setp(ax_e.get_xticklabels(), visible=False)
 
-    # Altitude / Up Plot
     ax_u.plot(times, w_up, color='#38A169', linewidth=1.2, label='dU (Up)')
     ax_u.axhline(0, color='#4A5568', linestyle='--', linewidth=0.8, alpha=0.7)
     ax_u.set_ylabel('dUp / Altitude (m)', fontsize=9.5, fontweight='bold', color='#2D3748')
@@ -234,16 +258,12 @@ def generate_plots(df_vector, station_name, doy, start_hour):
     ax_u.set_ylim(-10.0, 10.0)
     ax_u.grid(True, linestyle=':', alpha=0.5)
 
-    # Format Jam Sumbu X
     ax_u.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
     
-    # Legend Ringkas pada Subplot Kiri
     for ax in [ax_n, ax_e, ax_u]:
         ax.legend(loc='upper right', frameon=True, facecolor='white', framealpha=0.9, fontsize=8.5)
 
-    # -------------------------------------------------------------------------
-    # 2. RADAR VECTOR DISTRIBUTION (SISI KANAN - UKURAN PENUH/BESAR)
-    # -------------------------------------------------------------------------
+    # Radar Plot
     ax_radar = fig.add_subplot(gs[:, 1], projection='polar')
     max_r = 10.0
     
@@ -323,7 +343,6 @@ if st.sidebar.button("🚀 Process GNSS Data", type="primary"):
     else:
         with st.spinner("Processing GNSS Data (RTKLIB -> Stage 2B -> Vector Plots)..."):
             with tempfile.TemporaryDirectory() as temp_dir:
-                # 1. Simpan file upload ke temp dir
                 obs_temp_path = os.path.join(temp_dir, obs_file.name)
                 nav_temp_path = os.path.join(temp_dir, nav_file.name)
                 
@@ -332,7 +351,6 @@ if st.sidebar.button("🚀 Process GNSS Data", type="primary"):
                 with open(nav_temp_path, "wb") as f:
                     f.write(nav_file.getbuffer())
 
-                # 2. Eksekusi Stage 1 (RTKLIB)
                 pos_output_path = os.path.join(temp_dir, "output.pos")
                 csv_output_path = os.path.join(temp_dir, "output.csv")
                 
@@ -344,7 +362,6 @@ if st.sidebar.button("🚀 Process GNSS Data", type="primary"):
                     if not parse_success:
                         st.error(f"Parsing .pos to .csv failed: {debug_info}")
                     else:
-                        # 3. Eksekusi Stage 2B
                         ref_df = read_reference_file(ref_path)
                         st_code, doy, start_hour, clean_name = parse_rinex_filename_info(obs_file.name)
 
@@ -386,20 +403,44 @@ if st.sidebar.button("🚀 Process GNSS Data", type="primary"):
 
                             st.markdown("---")
 
-                            # 4. PLOT VISUALISASI
+                            # PLOT VISUALISASI
                             st.subheader("📈 Displacement Time-Series & Error Distribution Visualizations")
                             fig = generate_plots(df_simpangan, station_name, doy, start_hour)
                             st.pyplot(fig)
 
-                            # 5. TABEL DATA & DOWNLOAD
                             st.markdown("---")
-                            with st.expander("📊 View Data Table & Download Options"):
-                                st.dataframe(df_simpangan, use_container_width=True)
 
-                                csv_bytes = df_simpangan.to_csv(index=False).encode('utf-8')
-                                st.download_button(
-                                    label="📥 Download Full Vector Results (CSV)",
-                                    data=csv_bytes,
-                                    file_name=f"{clean_name}_vector.csv",
-                                    mime="text/csv"
-                                )
+                            # TABEL STATISTIK KETELITIAN & AKURASI
+                            st.subheader("📊 Tabel Analisis Statistik & Akses Data")
+                            df_stats = calculate_statistics(df_simpangan)
+                            st.dataframe(df_stats.style.format({
+                                'Rata-rata / Mean (m)': '{:.4f}',
+                                'Simpangan Baku / Std Dev (m)': '{:.4f}',
+                                'Akurasi Presisi / RMS (m)': '{:.4f}',
+                                'Nilai Maksimum (m)': '{:.4f}',
+                                'Nilai Minimum (m)': '{:.4f}',
+                                'Rentang Interkuartil / IQR (m)': '{:.4f}'
+                            }), use_container_width=True)
+
+                            # DOWNLOAD BUTTONS
+                            col_dl1, col_dl2 = st.columns(2)
+                            
+                            stats_csv_bytes = df_stats.to_csv(index=False).encode('utf-8')
+                            col_dl1.download_button(
+                                label="📥 Download Ringkasan Statistik (CSV)",
+                                data=stats_csv_bytes,
+                                file_name=f"{clean_name}_statistics.csv",
+                                mime="text/csv"
+                            )
+
+                            vector_csv_bytes = df_simpangan.to_csv(index=False).encode('utf-8')
+                            col_dl2.download_button(
+                                label="📥 Download Full Vector Results (CSV)",
+                                data=vector_csv_bytes,
+                                file_name=f"{clean_name}_vector.csv",
+                                mime="text/csv"
+                            )
+
+                            # EXPANDER DATA MENTAH
+                            with st.expander("🔍 Lihat Detail Tabel Data Vektor Per-Epok"):
+                                st.dataframe(df_simpangan, use_container_width=True)
