@@ -25,12 +25,10 @@ st.set_page_config(
 # =============================================================================
 def find_rnx2rtkp_executable():
     """Mencari rnx2rtkp dari sistem Linux (Streamlit Cloud) atau file lokal (Windows)."""
-    # 1. Cek apakah rnx2rtkp sudah terinstall di sistem Linux (Streamlit Cloud via packages.txt)
     system_path = shutil.which("rnx2rtkp")
     if system_path:
         return system_path
 
-    # 2. Cek file lokal rnx2rtkp.exe jika dijalankan di PC Windows lokal kamu
     script_dir = os.path.dirname(os.path.abspath(__file__))
     possible_paths = [
         os.path.join(script_dir, "rnx2rtkp.exe"),
@@ -137,7 +135,7 @@ def read_reference_file(ref_file_path):
     return df_ref
 
 def calculate_geodetic_displacements(lat, lon, alt, ref_lat, ref_lon, ref_alt):
-    """Menhitung simpangan geodesi (dN, dE, dU) dalam meter dan azimuth vector."""
+    """Menghitung simpangan geodesi (dN, dE, dU) dalam meter dan azimuth vector."""
     R_earth = 6378137.0  # WGS84 Radius (meter)
     lat_rad = np.radians(ref_lat)
     
@@ -181,86 +179,66 @@ def prepare_datetime_with_utc_code(df, doy, start_hour, year=2026):
     return df, obs_date_str, start_hour
 
 # =============================================================================
-# 3. FUNGSIONALITAS STAGE 3: PLOTTING (LIMIT MAXIMUM 10 METER)
+# 3. FUNGSIONALITAS STAGE 3: PLOTTING (MODIFIKASI SUBPLOT KIRI TERPISAH)
 # =============================================================================
-def get_quadrant_colors(u_arr, v_arr):
-    colors_hex = ['#2ca02c', '#d62728', '#1f77b4', '#ff7f0e']
-    colors = []
-    for u, v in zip(u_arr, v_arr):
-        if u >= 0 and v >= 0:
-            colors.append(colors_hex[0])
-        elif u < 0 and v >= 0:
-            colors.append(colors_hex[1])
-        elif u < 0 and v < 0:
-            colors.append(colors_hex[2])
-        else:
-            colors.append(colors_hex[3])
-    return colors
-
 def generate_plots(df_vector, station_name, doy, start_hour):
     u_east = df_vector['dE_meter'].values
     v_north = df_vector['dN_meter'].values
+    w_up = df_vector['dU_meter'].values
     mag = df_vector['magnitude_2D_m'].values
 
     df_plot, obs_date_str, start_hr = prepare_datetime_with_utc_code(df_vector, doy, start_hour)
 
     fig = plt.figure(figsize=(18, 8.5), dpi=140)
 
-    # SUBPLOT 1: TIME-SERIES QUIVER
-    ax_ts = fig.add_subplot(1, 2, 1)
-    ax_ts.axhline(0, color='black', linestyle='--', linewidth=1.0, alpha=0.7)
-    y_base = np.zeros(len(df_plot))
-    arrow_colors = get_quadrant_colors(u_east, v_north)
-
-    ax_ts.quiver(
-        df_plot['datetime'], y_base, 
-        u_east, v_north, 
-        angles='uv', scale_units='y', scale=1, 
-        color=arrow_colors, width=0.0028, headwidth=3.8, 
-        headlength=4.2, headaxislength=3.8, alpha=0.90, zorder=4
-    )
-
-    ax_ts.set_ylabel('Error Vector Magnitude & North Component (m)', fontsize=10, fontweight='bold')
-    ax_ts.set_xlabel('Observation Time (UTC)', fontsize=10, fontweight='bold')
+    # =========================================================================
+    # SUBPLOT 1 (KIRI): TIME-SERIES SIMPANGAN N-S, E-W, & HEIGHT (3 SUBPLOTS)
+    # =========================================================================
+    gs_left = fig.add_gridspec(3, 1, left=0.06, right=0.48, top=0.90, bottom=0.10, hspace=0.15)
     
-    # FORMAT JUDUL LAMA
-    ax_ts.set_title(
-        f'ERROR VECTOR TIME-SERIES PLOT\nSTATION: {station_name.upper()} | DATE: {obs_date_str} (Start: {start_hr:02d}:00 UTC)', 
-        fontsize=11.5, fontweight='bold', pad=15
+    ax_n = fig.add_subplot(gs_left[0, 0])
+    ax_e = fig.add_subplot(gs_left[1, 0], sharex=ax_n)
+    ax_u = fig.add_subplot(gs_left[2, 0], sharex=ax_n)
+
+    times = df_plot['datetime']
+
+    # 1. Plot Simpangan North-South (dN)
+    ax_n.plot(times, v_north, color='#d62728', linewidth=1.2, label='dN (North)')
+    ax_n.axhline(0, color='black', linestyle='--', linewidth=0.8, alpha=0.7)
+    ax_n.set_ylabel('dNorth (m)', fontsize=9, fontweight='bold')
+    ax_n.set_ylim(-10.0, 10.0)
+    ax_n.grid(True, linestyle=':', alpha=0.6)
+    ax_n.set_title(
+        f'DISPLACEMENT TIME-SERIES (N, E, U)\nSTATION: {station_name.upper()} | DATE: {obs_date_str} (Start: {start_hr:02d}:00 UTC)',
+        fontsize=11, fontweight='bold', pad=10
     )
+    plt.setp(ax_n.get_xticklabels(), visible=False)
 
-    ax_ts.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
-    fig.autofmt_xdate(rotation=30, ha='center')
+    # 2. Plot Simpangan East-West (dE)
+    ax_e.plot(times, u_east, color='#1f77b4', linewidth=1.2, label='dE (East)')
+    ax_e.axhline(0, color='black', linestyle='--', linewidth=0.8, alpha=0.7)
+    ax_e.set_ylabel('dEast (m)', fontsize=9, fontweight='bold')
+    ax_e.set_ylim(-10.0, 10.0)
+    ax_e.grid(True, linestyle=':', alpha=0.6)
+    plt.setp(ax_e.get_xticklabels(), visible=False)
 
-    # BATAS SUMBU Y BATAS MAKSIMUM 10 METER
-    ax_ts.set_ylim(-10.0, 10.0)
-    ax_ts.grid(True, linestyle=':', alpha=0.6)
+    # 3. Plot Simpangan Up/Height (dU)
+    ax_u.plot(times, w_up, color='#2ca02c', linewidth=1.2, label='dU (Height)')
+    ax_u.axhline(0, color='black', linestyle='--', linewidth=0.8, alpha=0.7)
+    ax_u.set_ylabel('dUp (m)', fontsize=9, fontweight='bold')
+    ax_u.set_xlabel('Observation Time (UTC)', fontsize=9.5, fontweight='bold')
+    ax_u.set_ylim(-10.0, 10.0)
+    ax_u.grid(True, linestyle=':', alpha=0.6)
 
-    # Inset Legenda Kuadran
-    colors_quad = ['#2ca02c', '#d62728', '#1f77b4', '#ff7f0e']
-    ax_inset = ax_ts.inset_axes([0.76, 0.62, 0.22, 0.33])
-    ax_inset.set_aspect('equal')
-    ax_inset.add_patch(Wedge((0, 0), 1, 0, 90, color=colors_quad[0], ec='white', lw=1.2))
-    ax_inset.add_patch(Wedge((0, 0), 1, 90, 180, color=colors_quad[1], ec='white', lw=1.2))
-    ax_inset.add_patch(Wedge((0, 0), 1, 180, 270, color=colors_quad[2], ec='white', lw=1.2))
-    ax_inset.add_patch(Wedge((0, 0), 1, 270, 360, color=colors_quad[3], ec='white', lw=1.2))
-    ax_inset.axhline(0, color='black', lw=0.8, zorder=5)
-    ax_inset.axvline(0, color='black', lw=0.8, zorder=5)
-    ax_inset.text(0.48, 0.48, 'Q-I\n(E-N)', ha='center', va='center', color='white', fontweight='bold', fontsize=5.5)
-    ax_inset.text(-0.48, 0.48, 'Q-II\n(W-N)', ha='center', va='center', color='white', fontweight='bold', fontsize=5.5)
-    ax_inset.text(-0.48, -0.48, 'Q-III\n(W-S)', ha='center', va='center', color='white', fontweight='bold', fontsize=5.5)
-    ax_inset.text(0.48, -0.48, 'Q-IV\n(E-S)', ha='center', va='center', color='white', fontweight='bold', fontsize=5.5)
-    ax_inset.add_patch(Circle((0, 0), 1, fill=False, edgecolor='black', lw=1.0))
-    ax_inset.text(0, 1.25, 'N (+dN)', ha='center', va='bottom', fontsize=5.5, fontweight='bold')
-    ax_inset.text(0, -1.25, 'S (-dN)', ha='center', va='top', fontsize=5.5, fontweight='bold')
-    ax_inset.text(1.25, 0, 'E (+dE)', ha='left', va='center', fontsize=5.5, fontweight='bold')
-    ax_inset.text(-1.25, 0, 'W (-dE)', ha='right', va='center', fontsize=5.5, fontweight='bold')
-    ax_inset.set_xlim(-1.6, 1.6)
-    ax_inset.set_ylim(-1.6, 1.6)
-    ax_inset.axis('off')
-    ax_inset.set_title('Quadrant Legend', fontsize=6.5, fontweight='bold', pad=3)
+    # Format Jam Sumbu X (Hanya di subplot paling bawah)
+    ax_u.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+    for label in ax_u.get_xticklabels():
+        label.set_rotation(30)
+        label.set_horizontalalignment('center')
 
-    # SUBPLOT 2: RADAR DISTRIBUTION (BATAS RADIUS MAKSIMUM 10 METER)
+    # =========================================================================
+    # SUBPLOT 2 (KANAN): RADAR DISTRIBUTION (TETAP SAMA SEPERTI ASLI)
+    # =========================================================================
     ax_radar = fig.add_subplot(1, 2, 2, projection='polar')
     max_r = 10.0  # Ditetapkan tepat 10 meter
     
@@ -297,13 +275,11 @@ def generate_plots(df_vector, station_name, doy, start_hour):
     cbar = fig.colorbar(scatter, ax=ax_radar, orientation='vertical', shrink=0.75, pad=0.1)
     cbar.set_label('Error Magnitude (m)', fontweight='bold', fontsize=9.5)
 
-    # FORMAT JUDUL LAMA
     ax_radar.set_title(
         f'ERROR VECTOR DISTRIBUTION\nSTATION: {station_name.upper()} | DATE: {obs_date_str} | Total Epochs: {len(df_vector)}',
         fontsize=11.5, fontweight='bold', pad=15
     )
 
-    plt.tight_layout()
     return fig
 
 # =============================================================================
