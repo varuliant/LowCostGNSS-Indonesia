@@ -179,7 +179,7 @@ def prepare_datetime_with_utc_code(df, doy, start_hour, year=2026):
     return df, obs_date_str, start_hour
 
 # =============================================================================
-# 3. FUNGSIONALITAS STAGE 3: PLOTTING (MODIFIKASI SUBPLOT KIRI TERPISAH)
+# 3. FUNGSIONALITAS STAGE 3: PLOTTING (LAYOUT ATAS-BAWAH BESAR DAN JELAS)
 # =============================================================================
 def generate_plots(df_vector, station_name, doy, start_hour):
     u_east = df_vector['dE_meter'].values
@@ -189,62 +189,68 @@ def generate_plots(df_vector, station_name, doy, start_hour):
 
     df_plot, obs_date_str, start_hr = prepare_datetime_with_utc_code(df_vector, doy, start_hour)
 
-    fig = plt.figure(figsize=(18, 8.5), dpi=140)
+    # Dibuat tinggi (figsize height=14) agar semua subplot leluasa dan terbaca jelas
+    fig = plt.figure(figsize=(14, 14), dpi=140)
 
-    # =========================================================================
-    # SUBPLOT 1 (KIRI): TIME-SERIES SIMPANGAN N-S, E-W, & HEIGHT (3 SUBPLOTS)
-    # =========================================================================
-    gs_left = fig.add_gridspec(3, 1, left=0.06, right=0.48, top=0.90, bottom=0.10, hspace=0.15)
-    
-    ax_n = fig.add_subplot(gs_left[0, 0])
-    ax_e = fig.add_subplot(gs_left[1, 0], sharex=ax_n)
-    ax_u = fig.add_subplot(gs_left[2, 0], sharex=ax_n)
+    # Menggunakan GridSpec 4 Baris x 1 Kolom (3 untuk Time Series, 1 untuk Radar)
+    gs = fig.add_gridspec(4, 1, height_ratios=[1, 1, 1, 1.8], hspace=0.35)
+
+    ax_n = fig.add_subplot(gs[0, 0])
+    ax_e = fig.add_subplot(gs[1, 0], sharex=ax_n)
+    ax_u = fig.add_subplot(gs[2, 0], sharex=ax_n)
 
     times = df_plot['datetime']
 
-    # 1. Plot Simpangan North-South (dN)
-    ax_n.plot(times, v_north, color='#d62728', linewidth=1.2, label='dN (North)')
-    ax_n.axhline(0, color='black', linestyle='--', linewidth=0.8, alpha=0.7)
-    ax_n.set_ylabel('dNorth (m)', fontsize=9, fontweight='bold')
+    # -------------------------------------------------------------------------
+    # 1. SIMPANGAN NORTH-SOUTH (dN)
+    # -------------------------------------------------------------------------
+    ax_n.plot(times, v_north, color='#d62728', linewidth=1.5, label='dN')
+    ax_n.axhline(0, color='black', linestyle='--', linewidth=1.0, alpha=0.7)
+    ax_n.set_ylabel('dNorth / NS (m)', fontsize=10, fontweight='bold')
     ax_n.set_ylim(-10.0, 10.0)
     ax_n.grid(True, linestyle=':', alpha=0.6)
     ax_n.set_title(
-        f'DISPLACEMENT TIME-SERIES (N, E, U)\nSTATION: {station_name.upper()} | DATE: {obs_date_str} (Start: {start_hr:02d}:00 UTC)',
-        fontsize=11, fontweight='bold', pad=10
+        f'DISPLACEMENT TIME-SERIES (NORTH-SOUTH, EAST-WEST, ALTITUDE/UP)\n'
+        f'STATION: {station_name.upper()} | DATE: {obs_date_str} (Start: {start_hr:02d}:00 UTC)',
+        fontsize=12, fontweight='bold', pad=12
     )
     plt.setp(ax_n.get_xticklabels(), visible=False)
 
-    # 2. Plot Simpangan East-West (dE)
-    ax_e.plot(times, u_east, color='#1f77b4', linewidth=1.2, label='dE (East)')
-    ax_e.axhline(0, color='black', linestyle='--', linewidth=0.8, alpha=0.7)
-    ax_e.set_ylabel('dEast (m)', fontsize=9, fontweight='bold')
+    # -------------------------------------------------------------------------
+    # 2. SIMPANGAN EAST-WEST (dE)
+    # -------------------------------------------------------------------------
+    ax_e.plot(times, u_east, color='#1f77b4', linewidth=1.5, label='dE')
+    ax_e.axhline(0, color='black', linestyle='--', linewidth=1.0, alpha=0.7)
+    ax_e.set_ylabel('dEast / EW (m)', fontsize=10, fontweight='bold')
     ax_e.set_ylim(-10.0, 10.0)
     ax_e.grid(True, linestyle=':', alpha=0.6)
     plt.setp(ax_e.get_xticklabels(), visible=False)
 
-    # 3. Plot Simpangan Up/Height (dU)
-    ax_u.plot(times, w_up, color='#2ca02c', linewidth=1.2, label='dU (Height)')
-    ax_u.axhline(0, color='black', linestyle='--', linewidth=0.8, alpha=0.7)
-    ax_u.set_ylabel('dUp (m)', fontsize=9, fontweight='bold')
-    ax_u.set_xlabel('Observation Time (UTC)', fontsize=9.5, fontweight='bold')
+    # -------------------------------------------------------------------------
+    # 3. SIMPANGAN ALTITUDE / UP (dU)
+    # -------------------------------------------------------------------------
+    ax_u.plot(times, w_up, color='#2ca02c', linewidth=1.5, label='dU')
+    ax_u.axhline(0, color='black', linestyle='--', linewidth=1.0, alpha=0.7)
+    ax_u.set_ylabel('dUp / Altitude (m)', fontsize=10, fontweight='bold')
+    ax_u.set_xlabel('Observation Time (UTC)', fontsize=10.5, fontweight='bold')
     ax_u.set_ylim(-10.0, 10.0)
     ax_u.grid(True, linestyle=':', alpha=0.6)
 
-    # Format Jam Sumbu X (Hanya di subplot paling bawah)
+    # Format Jam pada Sumbu X
     ax_u.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
     for label in ax_u.get_xticklabels():
-        label.set_rotation(30)
+        label.set_rotation(0)
         label.set_horizontalalignment('center')
 
-    # =========================================================================
-    # SUBPLOT 2 (KANAN): RADAR DISTRIBUTION (TETAP SAMA SEPERTI ASLI)
-    # =========================================================================
-    ax_radar = fig.add_subplot(1, 2, 2, projection='polar')
-    max_r = 10.0  # Ditetapkan tepat 10 meter
+    # -------------------------------------------------------------------------
+    # 4. RADAR VECTOR DISTRIBUTION (BAGIAN BAWAH)
+    # -------------------------------------------------------------------------
+    ax_radar = fig.add_subplot(gs[3, 0], projection='polar')
+    max_r = 10.0
     
     ax_radar.set_theta_zero_location('N')
     ax_radar.set_theta_direction(-1)
-    step = max_r / 5.0  # 2.0 meter per ring
+    step = max_r / 5.0
     radii = np.arange(step, max_r + step, step)
     
     zone_colors = ['#f2f4f8', '#ffffff', '#e5e9f0', '#ffffff', '#d8dee9', '#ffffff']
@@ -258,22 +264,22 @@ def generate_plots(df_vector, station_name, doy, start_hour):
 
     ax_radar.set_rlim(0, max_r)
     ax_radar.set_rticks(radii)
-    ax_radar.set_yticklabels([f"{r:.1f} m" for r in radii], fontsize=8, fontweight='bold', color='#2e3440')
+    ax_radar.set_yticklabels([f"{r:.1f} m" for r in radii], fontsize=8.5, fontweight='bold', color='#2e3440')
     ax_radar.grid(True, linestyle='--', color='#4c566a', alpha=0.45, zorder=2)
 
     angles = np.radians([0, 45, 90, 135, 180, 225, 270, 315])
     labels = ['N (+dN)', 'NE', 'E (+dE)', 'SE', 'S (-dN)', 'SW', 'W (-dE)', 'NW']
     ax_radar.set_xticks(angles)
-    ax_radar.set_xticklabels(labels, fontsize=8.5, fontweight='bold')
+    ax_radar.set_xticklabels(labels, fontsize=9, fontweight='bold')
 
     theta_rad = np.arctan2(u_east, v_north)
     scatter = ax_radar.scatter(
         theta_rad, mag, c=mag, cmap='plasma',
-        s=22, alpha=0.85, zorder=4, edgecolors='black', linewidths=0.3, vmin=0, vmax=max_r
+        s=28, alpha=0.85, zorder=4, edgecolors='black', linewidths=0.3, vmin=0, vmax=max_r
     )
 
-    cbar = fig.colorbar(scatter, ax=ax_radar, orientation='vertical', shrink=0.75, pad=0.1)
-    cbar.set_label('Error Magnitude (m)', fontweight='bold', fontsize=9.5)
+    cbar = fig.colorbar(scatter, ax=ax_radar, orientation='vertical', shrink=0.7, pad=0.08)
+    cbar.set_label('Error Magnitude (m)', fontweight='bold', fontsize=10)
 
     ax_radar.set_title(
         f'ERROR VECTOR DISTRIBUTION\nSTATION: {station_name.upper()} | DATE: {obs_date_str} | Total Epochs: {len(df_vector)}',
@@ -382,8 +388,8 @@ if st.sidebar.button("🚀 Process GNSS Data", type="primary"):
 
                             st.markdown("---")
 
-                            # 4. PLOT VISUALISASI DENGAN SKALA 10 METER
-                            st.subheader("📈 Vector & Radar Scatter Visualizations")
+                            # 4. PLOT VISUALISASI BERTINGKAT
+                            st.subheader("📈 Displacement Time-Series & Error Distribution Visualizations")
                             fig = generate_plots(df_simpangan, station_name, doy, start_hour)
                             st.pyplot(fig)
 
