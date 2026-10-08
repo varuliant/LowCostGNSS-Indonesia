@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from matplotlib.patches import Wedge, Circle
+from matplotlib.gridspec import GridSpec
 import streamlit as st
 import shutil
 
@@ -179,7 +179,7 @@ def prepare_datetime_with_utc_code(df, doy, start_hour, year=2026):
     return df, obs_date_str, start_hour
 
 # =============================================================================
-# 3. FUNGSIONALITAS STAGE 3: PLOTTING (LAYOUT ATAS-BAWAH BESAR DAN JELAS)
+# 3. FUNGSIONALITAS STAGE 3: PROFESSIONAL LAYOUT PLOTTING
 # =============================================================================
 def generate_plots(df_vector, station_name, doy, start_hour):
     u_east = df_vector['dE_meter'].values
@@ -188,64 +188,63 @@ def generate_plots(df_vector, station_name, doy, start_hour):
     mag = df_vector['magnitude_2D_m'].values
 
     df_plot, obs_date_str, start_hr = prepare_datetime_with_utc_code(df_vector, doy, start_hour)
+    times = df_plot['datetime']
 
-    # Dibuat tinggi (figsize height=14) agar semua subplot leluasa dan terbaca jelas
-    fig = plt.figure(figsize=(14, 14), dpi=140)
+    # Set Theme & Figure Dimensions
+    plt.style.use('seaborn-v0_8-whitegrid' if 'seaborn-v0_8-whitegrid' in plt.style.available else 'default')
+    fig = plt.figure(figsize=(16, 9), dpi=150)
+    
+    # Header Utama Figure
+    fig.suptitle(
+        f"GNSS GEODETIC DISPLACEMENT & ERROR ANALYSIS\nSTATION: {station_name.upper()} | DATE: {obs_date_str} (Start: {start_hr:02d}:00 UTC)",
+        fontsize=14, fontweight='bold', y=0.97, color='#1A202C'
+    )
 
-    # Menggunakan GridSpec 4 Baris x 1 Kolom (3 untuk Time Series, 1 untuk Radar)
-    gs = fig.add_gridspec(4, 1, height_ratios=[1, 1, 1, 1.8], hspace=0.35)
+    # GridSpec: 3 Baris x 2 Kolom (Kiri: Time Series, Kanan: Radar & Panel Statistik)
+    gs = GridSpec(3, 2, figure=fig, width_ratios=[1.35, 1.0], hspace=0.28, wspace=0.25)
 
+    # -------------------------------------------------------------------------
+    # 1. TIME SERIES SUBPLOTS (SISI KIRI)
+    # -------------------------------------------------------------------------
     ax_n = fig.add_subplot(gs[0, 0])
     ax_e = fig.add_subplot(gs[1, 0], sharex=ax_n)
     ax_u = fig.add_subplot(gs[2, 0], sharex=ax_n)
 
-    times = df_plot['datetime']
-
-    # -------------------------------------------------------------------------
-    # 1. SIMPANGAN NORTH-SOUTH (dN)
-    # -------------------------------------------------------------------------
-    ax_n.plot(times, v_north, color='#d62728', linewidth=1.5, label='dN')
-    ax_n.axhline(0, color='black', linestyle='--', linewidth=1.0, alpha=0.7)
-    ax_n.set_ylabel('dNorth / NS (m)', fontsize=10, fontweight='bold')
+    # North-South Plot
+    ax_n.plot(times, v_north, color='#E53E3E', linewidth=1.2, label='dN (North)')
+    ax_n.axhline(0, color='#4A5568', linestyle='--', linewidth=0.8, alpha=0.7)
+    ax_n.set_ylabel('dNorth / NS (m)', fontsize=9.5, fontweight='bold', color='#2D3748')
     ax_n.set_ylim(-10.0, 10.0)
-    ax_n.grid(True, linestyle=':', alpha=0.6)
-    ax_n.set_title(
-        f'DISPLACEMENT TIME-SERIES (NORTH-SOUTH, EAST-WEST, ALTITUDE/UP)\n'
-        f'STATION: {station_name.upper()} | DATE: {obs_date_str} (Start: {start_hr:02d}:00 UTC)',
-        fontsize=12, fontweight='bold', pad=12
-    )
+    ax_n.grid(True, linestyle=':', alpha=0.5)
     plt.setp(ax_n.get_xticklabels(), visible=False)
 
-    # -------------------------------------------------------------------------
-    # 2. SIMPANGAN EAST-WEST (dE)
-    # -------------------------------------------------------------------------
-    ax_e.plot(times, u_east, color='#1f77b4', linewidth=1.5, label='dE')
-    ax_e.axhline(0, color='black', linestyle='--', linewidth=1.0, alpha=0.7)
-    ax_e.set_ylabel('dEast / EW (m)', fontsize=10, fontweight='bold')
+    # East-West Plot
+    ax_e.plot(times, u_east, color='#3182CE', linewidth=1.2, label='dE (East)')
+    ax_e.axhline(0, color='#4A5568', linestyle='--', linewidth=0.8, alpha=0.7)
+    ax_e.set_ylabel('dEast / EW (m)', fontsize=9.5, fontweight='bold', color='#2D3748')
     ax_e.set_ylim(-10.0, 10.0)
-    ax_e.grid(True, linestyle=':', alpha=0.6)
+    ax_e.grid(True, linestyle=':', alpha=0.5)
     plt.setp(ax_e.get_xticklabels(), visible=False)
 
-    # -------------------------------------------------------------------------
-    # 3. SIMPANGAN ALTITUDE / UP (dU)
-    # -------------------------------------------------------------------------
-    ax_u.plot(times, w_up, color='#2ca02c', linewidth=1.5, label='dU')
-    ax_u.axhline(0, color='black', linestyle='--', linewidth=1.0, alpha=0.7)
-    ax_u.set_ylabel('dUp / Altitude (m)', fontsize=10, fontweight='bold')
-    ax_u.set_xlabel('Observation Time (UTC)', fontsize=10.5, fontweight='bold')
+    # Altitude / Up Plot
+    ax_u.plot(times, w_up, color='#38A169', linewidth=1.2, label='dU (Up)')
+    ax_u.axhline(0, color='#4A5568', linestyle='--', linewidth=0.8, alpha=0.7)
+    ax_u.set_ylabel('dUp / Altitude (m)', fontsize=9.5, fontweight='bold', color='#2D3748')
+    ax_u.set_xlabel('Observation Time (UTC)', fontsize=10, fontweight='bold', color='#2D3748')
     ax_u.set_ylim(-10.0, 10.0)
-    ax_u.grid(True, linestyle=':', alpha=0.6)
+    ax_u.grid(True, linestyle=':', alpha=0.5)
 
-    # Format Jam pada Sumbu X
-    ax_u.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
-    for label in ax_u.get_xticklabels():
-        label.set_rotation(0)
-        label.set_horizontalalignment('center')
+    # Format Jam Sumbu X
+    ax_u.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+    
+    # Legend Ringkas pada Subplot Kiri
+    for ax in [ax_n, ax_e, ax_u]:
+        ax.legend(loc='upper right', frameon=True, facecolor='white', framealpha=0.9, fontsize=8.5)
 
     # -------------------------------------------------------------------------
-    # 4. RADAR VECTOR DISTRIBUTION (BAGIAN BAWAH)
+    # 2. RADAR VECTOR DISTRIBUTION (SISI KANAN - ATAS)
     # -------------------------------------------------------------------------
-    ax_radar = fig.add_subplot(gs[3, 0], projection='polar')
+    ax_radar = fig.add_subplot(gs[0:2, 1], projection='polar')
     max_r = 10.0
     
     ax_radar.set_theta_zero_location('N')
@@ -253,39 +252,75 @@ def generate_plots(df_vector, station_name, doy, start_hour):
     step = max_r / 5.0
     radii = np.arange(step, max_r + step, step)
     
-    zone_colors = ['#f2f4f8', '#ffffff', '#e5e9f0', '#ffffff', '#d8dee9', '#ffffff']
+    zone_colors = ['#EDF2F7', '#FFFFFF', '#E2E8F0', '#FFFFFF', '#CBD5E0', '#FFFFFF']
     prev_r = 0
     theta_full = np.linspace(0, 2 * np.pi, 200)
 
     for idx, r in enumerate(radii):
         color = zone_colors[idx % len(zone_colors)]
-        ax_radar.fill_between(theta_full, prev_r, r, color=color, alpha=0.65, zorder=1)
+        ax_radar.fill_between(theta_full, prev_r, r, color=color, alpha=0.6, zorder=1)
         prev_r = r
 
     ax_radar.set_rlim(0, max_r)
     ax_radar.set_rticks(radii)
-    ax_radar.set_yticklabels([f"{r:.1f} m" for r in radii], fontsize=8.5, fontweight='bold', color='#2e3440')
-    ax_radar.grid(True, linestyle='--', color='#4c566a', alpha=0.45, zorder=2)
+    ax_radar.set_yticklabels([f"{r:.1f}m" for r in radii], fontsize=7.5, color='#4A5568')
+    ax_radar.grid(True, linestyle='--', color='#A0AEC0', alpha=0.5, zorder=2)
 
     angles = np.radians([0, 45, 90, 135, 180, 225, 270, 315])
     labels = ['N (+dN)', 'NE', 'E (+dE)', 'SE', 'S (-dN)', 'SW', 'W (-dE)', 'NW']
     ax_radar.set_xticks(angles)
-    ax_radar.set_xticklabels(labels, fontsize=9, fontweight='bold')
+    ax_radar.set_xticklabels(labels, fontsize=8.5, fontweight='bold', color='#2D3748')
 
     theta_rad = np.arctan2(u_east, v_north)
     scatter = ax_radar.scatter(
         theta_rad, mag, c=mag, cmap='plasma',
-        s=28, alpha=0.85, zorder=4, edgecolors='black', linewidths=0.3, vmin=0, vmax=max_r
+        s=22, alpha=0.85, zorder=4, edgecolors='black', linewidths=0.2, vmin=0, vmax=max_r
     )
 
-    cbar = fig.colorbar(scatter, ax=ax_radar, orientation='vertical', shrink=0.7, pad=0.08)
-    cbar.set_label('Error Magnitude (m)', fontweight='bold', fontsize=10)
+    cbar = fig.colorbar(scatter, ax=ax_radar, orientation='vertical', shrink=0.75, pad=0.1)
+    cbar.set_label('2D Error Mag (m)', fontweight='bold', fontsize=8.5)
+    cbar.ax.tick_params(labelsize=8)
 
-    ax_radar.set_title(
-        f'ERROR VECTOR DISTRIBUTION\nSTATION: {station_name.upper()} | DATE: {obs_date_str} | Total Epochs: {len(df_vector)}',
-        fontsize=11.5, fontweight='bold', pad=15
+    ax_radar.set_title('2D Vector Displacement Distribution', fontsize=10.5, fontweight='bold', pad=12, color='#1A202C')
+
+    # -------------------------------------------------------------------------
+    # 3. STATISTICAL SUMMARY PANEL (SISI KANAN - BAWAH)
+    # -------------------------------------------------------------------------
+    ax_stats = fig.add_subplot(gs[2, 1])
+    ax_stats.axis('off')
+
+    # Kalkulasi Parameter Statistik Geodesi
+    stats_data = [
+        ["Component", "Min (m)", "Max (m)", "Mean (m)", "Std Dev / RMS (m)"],
+        ["North (dN)", f"{np.min(v_north):.3f}", f"{np.max(v_north):.3f}", f"{np.mean(v_north):.3f}", f"{np.std(v_north):.3f}"],
+        ["East (dE)", f"{np.min(u_east):.3f}", f"{np.max(u_east):.3f}", f"{np.mean(u_east):.3f}", f"{np.std(u_east):.3f}"],
+        ["Up / Alt (dU)", f"{np.min(w_up):.3f}", f"{np.max(w_up):.3f}", f"{np.mean(w_up):.3f}", f"{np.std(w_up):.3f}"],
+        ["2D Mag", f"{np.min(mag):.3f}", f"{np.max(mag):.3f}", f"{np.mean(mag):.3f}", f"{np.std(mag):.3f}"]
+    ]
+
+    table = ax_stats.table(
+        cellText=stats_data,
+        cellLoc='center',
+        loc='center',
+        bbox=[0.02, 0.05, 0.96, 0.85]
     )
+    
+    table.auto_set_font_size(False)
+    table.set_fontsize(8.5)
 
+    # Styling Tabel
+    for (row, col), cell in table.get_celld().items():
+        if row == 0:
+            cell.set_facecolor('#2B6CB0')
+            cell.set_text_props(color='white', fontweight='bold')
+        else:
+            if row % 2 == 0:
+                cell.set_facecolor('#F7FAFC')
+            else:
+                cell.set_facecolor('#EDF2F7')
+            cell.set_edgecolor('#CBD5E0')
+
+    plt.subplots_adjust(top=0.90, bottom=0.08, left=0.07, right=0.96)
     return fig
 
 # =============================================================================
